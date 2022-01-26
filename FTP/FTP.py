@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from dateutil import parser
 import os
+import zipfile
 
 '''Сохраняем время запуска в Date_now'''
 Date_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -25,7 +26,7 @@ for path, dirs, files in os.walk('Temp'):
 with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
 '''Берем из конфига дату последнего запуска'''
-Last_run_time = config['Last_run_time']
+Last_run_time = parser.parse(config['Last_run_time'])
 
 '''------------------------------------'''
 '''Подключаемся к ФТП ЕИС'''
@@ -34,16 +35,29 @@ ftp.login('free', 'free')
 # Меняем рабочую папку на ФТП
 ftp.cwd('fcs_regions//Tulskaja_obl//contracts//currMonth')
 # Создаем список файлов из рабочей папки ФТП ЕИС
-xmls = list()
+xmls, names = list(), list()
 ftp.dir(xmls.append)
 for xml in xmls:
     tokens = xml.split()
     name = tokens[8]
+    names.append(name)
     time_str = tokens[5] + " " + tokens[6] + " " + tokens[7]
     time = parser.parse(time_str)
     if os.getcwd() != os.path.join(Work_dir, 'Temp'):
         os.chdir('Temp')
-    with open(name, 'wb') as f:
-        ftp.retrbinary('RETR ' + name, f.write)
-
+    # Загружаем только то, что после последнего запуска
+    # Проверить UTC!!!
+    if time > Last_run_time:
+        with open(name, 'wb') as f:
+            ftp.retrbinary('RETR ' + name, f.write)
 ftp.close()
+'''Распаковываем всё во временную папку'''
+for name in names:
+    if zipfile.is_zipfile(name):
+        z = zipfile.ZipFile(name, 'r')
+        z.extractall()
+'''Удаляем всё лишнее'''
+for item in os.listdir(os.path.join(Work_dir, 'Temp')):
+    if not item.endswith('.xml') or not item.startswith('contractProcedure'):
+        os.unlink(os.path.join(Work_dir, 'Temp', item))
+
