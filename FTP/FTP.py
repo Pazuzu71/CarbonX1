@@ -4,6 +4,7 @@ from datetime import datetime
 from dateutil import parser
 import os
 import zipfile
+import xml.etree.ElementTree as ET
 
 '''Сохраняем время запуска в Date_now'''
 Date_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -34,7 +35,7 @@ ftp = FTP('ftp.zakupki.gov.ru')
 ftp.login('free', 'free')
 # Меняем рабочую папку на ФТП
 ftp.cwd('fcs_regions//Tulskaja_obl//contracts//currMonth')
-# Создаем список файлов из рабочей папки ФТП ЕИС
+# Создаем список файлов и их имен из рабочей папки ФТП ЕИС
 xmls, names = list(), list()
 ftp.dir(xmls.append)
 for xml in xmls:
@@ -60,4 +61,13 @@ for name in names:
 for item in os.listdir(os.path.join(Work_dir, 'Temp')):
     if not item.endswith('.xml') or not item.startswith('contractProcedure'):
         os.unlink(os.path.join(Work_dir, 'Temp', item))
-
+    elif item.startswith('contractProcedureCancel'):
+        os.unlink(os.path.join(Work_dir, 'Temp', item))
+    else:
+        tree = ET.parse(item)
+        root = tree.getroot()
+        subroot = '{http://zakupki.gov.ru/oos/export/1}contractProcedure'
+        isEDIBased = '{http://zakupki.gov.ru/oos/types/1}isEDIBased'
+        for child in root.findall(subroot + '/' + isEDIBased):
+            if child.text == 'false':
+                os.unlink(os.path.join(Work_dir, 'Temp', item))
